@@ -17,6 +17,7 @@ so h5 file isn't required to load weights of a loaded Classifier instance.
 
 ==== REQUIREMENTS ====
 - Python 3.5+
-- Keras 2.x
-- Keras backend: Theano / Tensorflow
-- Numpy
+- Keras 2.x (deep learning API)
+- Keras backend: Theano / Tensorflow (deep learning engine)
+- h5py (for saving models)
+- Numpy (matrix calculations)
