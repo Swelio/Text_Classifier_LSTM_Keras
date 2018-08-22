@@ -41,6 +41,7 @@ class Classifier:
             try:
                 self.__dict__ = Classifier._load_classifier(classifier_save_path).__dict__.copy()
                 print('Classifier successfully loaded')
+                self.display_categories()
                 return
             except EOFError as e:
                 print('Failed to load classifier:', e, '\n')
@@ -201,16 +202,19 @@ class Classifier:
                 superText += category_text
                 texts_dico[dir_path] = category_text
 
+        self.display_categories()
+
+        tokenizer.fit_on_texts(superText)
+
+        return tokenizer, texts_dico
+
+    def display_categories(self):
         print('Total categories: {}'.format(len(self.categories)))
         for category in self.categories:
             end = ' - '
             if self.categories.index(category) == len(self.categories) - 1:
                 end = '\n' * 2
             print(category, end=end)
-
-        tokenizer.fit_on_texts(superText)
-
-        return tokenizer, texts_dico
 
     def _buildnet(self):
         if self.total_vocab is None:
