@@ -8,6 +8,7 @@ There is a file "language_detector" which contains a save of an instance
 which classify five languages: German, English, Spanish, French and Dutch.
 
 ==== PARAMETERS ====
+
 You can choose the size of data batches loaded in memory (by default 50.0 MB)
 with the parameter data_size_max. It overcomes memory issues.
 
