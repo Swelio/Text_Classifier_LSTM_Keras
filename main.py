@@ -11,7 +11,8 @@ from classifier_class import Classifier
 if __name__ == '__main__':
     resources = '.'
     test = '.'
-    dictionnary_path = '.optional dictionnary
+    # optional dictionary
+    dictionary_path = '.'
 
     detector = Classifier(resources,
                           weights_file='CNN_authors',
