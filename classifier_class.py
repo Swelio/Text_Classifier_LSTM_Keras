@@ -34,7 +34,9 @@ class Classifier:
                  weights_file='weights.h5',
                  checkpoint=None,
                  fit_epochs=2,
-                 overwrite=True):
+                 overwrite=True,
+                 reuse_datas=False,
+                 dict_path=None):
         # --- INIT CONTEXT ---
         random.seed()
         if os.path.exists(classifier_save_path) and os.path.isfile(classifier_save_path):
@@ -58,8 +60,10 @@ class Classifier:
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
-        self.tokenizer, cat_dico = self._prepareTokenizer(resources_path=resources_path)  # initiate tokenizer
-        self._generateDatas(texts_dico=cat_dico, overwrite=overwrite)  # generate data files from resources for fitting
+        # initiate tokenizer
+        self.tokenizer, cat_dico = self._prepareTokenizer(resources_path=resources_path, dict_path=dict_path)
+        # generate data files from resources for fitting
+        self._generateDatas(texts_dico=cat_dico, overwrite=overwrite, reuse_datas=reuse_datas)
 
         # --- NEURAL NETWORK ---
         if not weights_file.endswith('.h5'):
@@ -128,13 +132,17 @@ class Classifier:
         # --- RETURN ---
         return datas, target
 
-    def _generateDatas(self, texts_dico, overwrite=True):
+    def _generateDatas(self, texts_dico, overwrite=True, reuse_datas=False):
         print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
 
         for category, text in texts_dico.items():
             targetIndex = self.categories.index(category)
             for files in range(self.file_by_class):
                 print('[{}] File {} on {}'.format(category, files + 1, self.file_by_class))
+                filename = os.path.join(self.data_dir, category + str(files))
+                if reuse_datas:
+                    if os.path.exists(filename):
+                        continue
                 datas, target = [], []
                 while sys.getsizeof(np.array(datas)) < self.data_size_max:
                     piece = self.extract_datas(text)
@@ -143,7 +151,7 @@ class Classifier:
                     temp_target = [0.] * len(self.categories)
                     temp_target[targetIndex] = 1.
                     target.append(temp_target)
-                self.save_datas(np.array(datas), np.array(target), category + str(files), overwrite=overwrite)
+                self.save_datas(np.array(datas), np.array(target), filename, overwrite=overwrite)
 
         print('Datas extracted\n')
 
@@ -194,13 +202,16 @@ class Classifier:
 
         return datas, target
 
-    def _prepareTokenizer(self, resources_path):
+    def _prepareTokenizer(self, resources_path, dict_path=None):
         """ Initiate the tokenizer for text preprocessing """
         tokenizer = Tokenizer(num_words=self.total_vocab)
         texts_dico = {}
         superText = []
-
         resources_dir = os.listdir(resources_path)
+
+        if dict_path is not None:
+            with open(dict_path, 'r', encoding='utf-8') as file:
+                superText.append(file.read())
 
         for dir_path in resources_dir:  # explore resources directory
             temp_path = os.path.join(resources_path, dir_path)
@@ -246,15 +257,18 @@ class Classifier:
         model.add(Embedding(len(self.tokenizer.word_index), int(np.round(self.sequence_length * 1.5)),
                             input_length=self.sequence_length))
         model.add(Conv1D(8, 3, activation='relu'))
+        model.add(Dropout(0.05))
         model.add(MaxPooling1D())
         model.add(Conv1D(16, 3, activation='relu'))
+        model.add(Dropout(0.05))
         model.add(MaxPooling1D())
         model.add(Conv1D(32, 3, activation='relu'))
+        model.add(Dropout(0.05))
         model.add(MaxPooling1D())
-        model.add(LSTM(64, recurrent_dropout=0.05))
+        model.add(LSTM(64, recurrent_dropout=0.07))
         model.add(Dense(64, activation='relu'))
         model.add(Dropout(0.1))
-        model.add(Dense(len(self.categories), activation='sigmoid'))
+        model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer='nadam', loss='categorical_crossentropy', metrics=['accuracy'])
 
         try:
@@ -286,7 +300,7 @@ class Classifier:
             x_test, y_test = self.mix_datas()
 
             self.model.fit(datas, target,
-                           batch_size=16, epochs=3,
+                           batch_size=16, epochs=1,
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
