@@ -21,5 +21,5 @@ if __name__ == '__main__':
                           data_size_max=10,
                           sequence_length=200,
                           reuse_datas=False,
-                          dict_path=None)
+                          dict_path=dictionary_path)
     detector.display_prediction(test)
