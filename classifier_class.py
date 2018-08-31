@@ -254,7 +254,7 @@ class Classifier:
         model.add(LSTM(64, recurrent_dropout=0.05))
         model.add(Dense(64, activation='relu'))
         model.add(Dropout(0.1))
-        model.add(Dense(len(self.categories), activation='softmax'))
+        model.add(Dense(len(self.categories), activation='sigmoid'))
         model.compile(optimizer='nadam', loss='categorical_crossentropy', metrics=['accuracy'])
 
         try:
