@@ -137,8 +137,6 @@ class Classifier:
                 print('[{}] File {} on {}'.format(category, files + 1, self.file_by_class))
                 datas, target = [], []
                 while sys.getsizeof(np.array(datas)) < self.data_size_max:
-                    i = random.randint(0, len(text) - self.sequence_length)
-
                     piece = self.extract_datas(text)
                     datas.append(piece)
 
