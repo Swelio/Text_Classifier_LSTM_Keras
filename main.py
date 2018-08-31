@@ -13,8 +13,9 @@ if __name__ == '__main__':
     test = '.'
 
     detector = Classifier(resources,
-                          weights_file='CNN_languages',
-                          classifier_save_path='CNN_languages_detector',
-                          fit_epochs=30,
-                          data_size_max=70)
+                          weights_file='CNN_authors',
+                          classifier_save_path='CNN_authors_detector',
+                          fit_epochs=20,
+                          data_size_max=3,
+                          sequence_length=150)
     detector.display_prediction(test)
