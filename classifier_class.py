@@ -61,7 +61,7 @@ class Classifier:
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
-        self.vocab_coeff = 10000.
+        self.vocab_coeff = 1000.
         # initiate categories
         cat_dico = self._prepareCategories(resources_path=resources_path)
         # generate data files from resources for fitting
@@ -73,7 +73,7 @@ class Classifier:
             weights_file += '.h5'
         self.weights_file = weights_file
         self.checkpoint = checkpoint
-        self.optimizer = 'Nadam'
+        self.optimizer = 'Adam'
         self.loss = 'categorical_crossentropy'
         self.model = self._buildnet()  # build neural network model
         self.fit_on_all(epochs=fit_epochs)  # fit neural network from data files
@@ -191,7 +191,7 @@ class Classifier:
 
         data = hashing_trick(data, np.round(self.total_vocab * 1.5), hash_function=self.hash_function)
         data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
-        return np.reshape(data, data.shape[1:] + (1,))
+        return np.reshape(data, data.shape[1:]) / float(self.vocab_coeff)
 
     def mix_datas(self):
         """ Used to extract datas randomly from data files (same amount per category) """
@@ -259,11 +259,16 @@ class Classifier:
         Build the neural network model and load weights from weight file if exists
         :return: neural network
         """
+
+        input_dim = int((self.total_vocab + 1) // self.vocab_coeff + 1)
+        if self.total_vocab <= self.vocab_coeff:
+            input_dim = self.total_vocab + 1
+
         model = Sequential()
-        # model.add(Embedding(int((self.total_vocab + 1) // self.vocab_coeff + 1),  # limitation memory
-        #                     int(np.round(self.sequence_length * 1.5)),
-        #                     input_length=int(self.sequence_length)))
-        model.add(Conv1D(4, 3, activation='relu', input_shape=(self.sequence_length, 1)))
+        model.add(Embedding(input_dim,  # limitation memory
+                            int(np.round(self.sequence_length * 1.5)),
+                            input_length=int(self.sequence_length)))
+        model.add(Conv1D(4, 3, activation='relu'))
         model.add(MaxPooling1D())
         model.add(Conv1D(8, 3, activation='relu'))
         model.add(Dropout(0.01))
@@ -275,7 +280,9 @@ class Classifier:
         model.add(Dropout(0.01))
         model.add(MaxPooling1D())
         model.add(LSTM(64, recurrent_dropout=0.01))
-        model.add(Dense(64, activation='relu'))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.01))
+        model.add(Dense(32, activation='relu'))
         model.add(Dropout(0.01))
         model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
@@ -309,13 +316,13 @@ class Classifier:
             x_test, y_test = self.mix_datas()
 
             self.model.fit(datas, target,
-                           batch_size=16, epochs=3,
+                           batch_size=16, epochs=1,
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
             self.load_weights(self.weights_file)
             self.save_classifier()  # save classifier
-        self.save_classifier()
+        self.save_weights(self.weights_file)
         print()
 
     def predict(self, filepath, num=30):
