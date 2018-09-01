@@ -334,4 +334,4 @@ class Classifier:
 
         print('Predictions for:', name)
         for e in results:  # display each category with its result
-            print("{0:.2f}% - {1}".format(e[0] * 100, e[1]))
+            print("{0:.2f}% - {1}".format(np.round(e[0] * 100, 2), e[1]))
