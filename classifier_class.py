@@ -43,6 +43,7 @@ class Classifier:
             print('Classifier file already exists, loading it...')
             try:
                 self.__dict__ = Classifier._load_classifier(classifier_save_path).__dict__.copy()
+                self.load_weights(self.weights_file)
                 print('Classifier successfully loaded')
                 self.display_categories()
                 return
@@ -96,7 +97,6 @@ class Classifier:
         self.model.compile(optimizer=self.optimizer, loss=self.loss)
 
     def save_classifier(self):
-        self.save_weights(self.weights_file)
         with open(self.classifier_save_path, 'wb') as file:
             pickle.Pickler(file).dump(self)
 
@@ -191,7 +191,7 @@ class Classifier:
 
         data = hashing_trick(data, np.round(self.total_vocab * 1.5), hash_function=self.hash_function)
         data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
-        return np.reshape(data, data.shape[1:]) / float(self.vocab_coeff)
+        return np.reshape(data, data.shape[1:] + (1,))
 
     def mix_datas(self):
         """ Used to extract datas randomly from data files (same amount per category) """
@@ -260,21 +260,23 @@ class Classifier:
         :return: neural network
         """
         model = Sequential()
-        model.add(Embedding(int((self.total_vocab + 1) // self.vocab_coeff + 1),  # limitation memory
-                            int(np.round(self.sequence_length * 1.5)),
-                            input_length=int(self.sequence_length)))
+        # model.add(Embedding(int((self.total_vocab + 1) // self.vocab_coeff + 1),  # limitation memory
+        #                     int(np.round(self.sequence_length * 1.5)),
+        #                     input_length=int(self.sequence_length)))
+        model.add(Conv1D(4, 3, activation='relu', input_shape=(self.sequence_length, 1)))
+        model.add(MaxPooling1D())
         model.add(Conv1D(8, 3, activation='relu'))
-        model.add(Dropout(0.05))
+        model.add(Dropout(0.01))
         model.add(MaxPooling1D())
         model.add(Conv1D(16, 3, activation='relu'))
-        model.add(Dropout(0.05))
+        model.add(Dropout(0.01))
         model.add(MaxPooling1D())
         model.add(Conv1D(32, 3, activation='relu'))
-        model.add(Dropout(0.05))
+        model.add(Dropout(0.01))
         model.add(MaxPooling1D())
-        model.add(LSTM(64, recurrent_dropout=0.05))
+        model.add(LSTM(64, recurrent_dropout=0.01))
         model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.05))
+        model.add(Dropout(0.01))
         model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
 
@@ -311,7 +313,9 @@ class Classifier:
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
+            self.load_weights(self.weights_file)
             self.save_classifier()  # save classifier
+        self.save_classifier()
         print()
 
     def predict(self, filepath, num=30):
