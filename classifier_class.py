@@ -305,8 +305,8 @@ class Classifier:
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
+            self.save_classifier()  # save classifier
         print()
-        self.save_classifier()
 
     def predict(self, filepath, num=30):
         """ Make a prediction from a text file """
