@@ -321,7 +321,7 @@ class Classifier:
         prediction = results / num  # make the average (to avoid error with bad extracts)
         return prediction.reshape(prediction.shape[1:])
 
-    def display_prediction(self, filepath, num=30):
+    def display_prediction(self, filepath, num=30, limit=0):
         """ Display prediction """
         # prepare a display name
         name = os.path.join(os.path.basename(os.path.dirname(filepath)), os.path.basename(filepath))
@@ -332,6 +332,9 @@ class Classifier:
             results.append([prediction[i], self.categories[i]])
         results = sorted(results, key=lambda res: res[0], reverse=True)
 
+        if not limit:
+            limit = len(results)
+
         print('Predictions for:', name)
-        for e in results:  # display each category with its result
+        for e in results[:limit]:  # display each category with its result
             print("{0:.2f}% - {1}".format(np.round(e[0] * 100, 2), e[1]))
