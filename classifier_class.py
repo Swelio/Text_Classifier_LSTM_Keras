@@ -60,7 +60,8 @@ class Classifier:
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
-        # initiate tokenizer
+        self.vocab_coeff = 10000.
+        # initiate categories
         cat_dico = self._prepareCategories(resources_path=resources_path)
         # generate data files from resources for fitting
         self._generateDatas(texts_dico=cat_dico, overwrite=overwrite, reuse_datas=reuse_datas)
@@ -187,7 +188,7 @@ class Classifier:
 
         data = hashing_trick(data, np.round(self.total_vocab * 1.5), hash_function=self.hash_function)
         data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
-        return np.reshape(data, data.shape[1:]) / 10000.
+        return np.reshape(data, data.shape[1:]) / float(self.vocab_coeff)
 
     def mix_datas(self):
         """ Used to extract datas randomly from data files (same amount per category) """
@@ -255,7 +256,7 @@ class Classifier:
         :return: neural network
         """
         model = Sequential()
-        model.add(Embedding((self.total_vocab + 1) // 10000 + 1,  # limitation memory
+        model.add(Embedding((self.total_vocab + 1) // self.vocab_coeff + 1,  # limitation memory
                             int(np.round(self.sequence_length * 1.5)),
                             input_length=self.sequence_length))
         model.add(Conv1D(8, 3, activation='relu'))

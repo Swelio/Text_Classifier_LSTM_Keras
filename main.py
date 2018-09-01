@@ -16,7 +16,7 @@ if __name__ == '__main__':
                           weights_file='CNN_authors',
                           classifier_save_path='CNN_authors_detector',
                           total_vocab=300000,
-                          fit_epochs=10,
+                          fit_epochs=20,
                           data_size_max=5,
                           sequence_length=200,
                           reuse_datas=True)
