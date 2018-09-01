@@ -11,11 +11,12 @@ import glob
 import numpy as np
 import pickle
 import random
+from hashlib import sha3_224
 
 from keras.callbacks import ModelCheckpoint
 from keras.models import Sequential, model_from_json
 from keras.layers import Dense, LSTM, Dropout, Conv1D, MaxPooling1D, Embedding
-from keras.preprocessing.text import Tokenizer, text_to_word_sequence
+from keras.preprocessing.text import text_to_word_sequence, hashing_trick
 from keras.preprocessing.sequence import pad_sequences
 
 
@@ -35,8 +36,7 @@ class Classifier:
                  checkpoint=None,
                  fit_epochs=2,
                  overwrite=True,
-                 reuse_datas=False,
-                 dict_path=None):
+                 reuse_datas=False):
         # --- INIT CONTEXT ---
         random.seed()
         if os.path.exists(classifier_save_path) and os.path.isfile(classifier_save_path):
@@ -47,7 +47,7 @@ class Classifier:
                 self.display_categories()
                 return
             except EOFError as e:
-                print('Failed to load classifier:', e, '\n')
+                print('Failed to load classifier: File corrupted (EOFError)\n')
 
         # --- FILES ---
         self.classifier_save_path = classifier_save_path
@@ -61,7 +61,7 @@ class Classifier:
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
         # initiate tokenizer
-        self.tokenizer, cat_dico = self._prepareTokenizer(resources_path=resources_path, dict_path=dict_path)
+        cat_dico = self._prepareCategories(resources_path=resources_path)
         # generate data files from resources for fitting
         self._generateDatas(texts_dico=cat_dico, overwrite=overwrite, reuse_datas=reuse_datas)
 
@@ -166,6 +166,10 @@ class Classifier:
             source_text = source_text.replace(sign, ' ')
         return source_text
 
+    @staticmethod
+    def hash_function(x):
+        return int(sha3_224(x.encode()).hexdigest(), 16)
+
     def extract_datas(self, source_text):
         """ Used to extract a random sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
@@ -180,9 +184,10 @@ class Classifier:
             data = temp_text
         except ValueError:
             data = source_text
-        data = self.tokenizer.texts_to_sequences([data])  # transform word sequence into data
-        data = pad_sequences(data, maxlen=self.sequence_length, padding='post')
-        return np.reshape(data, data.shape[1:])
+
+        data = hashing_trick(data, np.round(self.total_vocab * 1.5), hash_function=self.hash_function)
+        data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
+        return np.reshape(data, data.shape[1:]) / 10000.
 
     def mix_datas(self):
         """ Used to extract datas randomly from data files (same amount per category) """
@@ -202,20 +207,16 @@ class Classifier:
 
         return datas, target
 
-    def _prepareTokenizer(self, resources_path, dict_path=None):
-        """ Initiate the tokenizer for text preprocessing """
-        tokenizer = Tokenizer(num_words=self.total_vocab)
+    def _prepareCategories(self, resources_path):
+        """ Register vocabulary and categories """
         texts_dico = {}
-        superText = []
+        superText = ''
         resources_dir = os.listdir(resources_path)
 
-        if dict_path is not None:
-            with open(dict_path, 'r', encoding='utf-8') as file:
-                superText.append(file.read())
-
+        # --- REGISTER CATEGORIES FROM SOURCES ---
         for dir_path in resources_dir:  # explore resources directory
             temp_path = os.path.join(resources_path, dir_path)
-            if os.path.isdir(temp_path):  # look for category directory
+            if os.path.isdir(temp_path):  # look for a category directory
                 self.categories.append(dir_path)  # append category in knowns
                 texts_pathes = glob.glob(os.path.join(temp_path, '*.txt'))
                 category_text = ""
@@ -228,15 +229,17 @@ class Classifier:
                         category_text += text  # append text to the global category text
                     except (FileNotFoundError, OSError) as e:
                         print(e)
-                superText.append(category_text)  # append the global category text to the global text
+                superText += category_text + ' '  # append the global category text to the global text
                 texts_dico[dir_path] = category_text  # register category text into knowns categories
 
         self.display_categories()  # display knowns categories
 
-        tokenizer.fit_on_texts(superText)  # fit tokenizer on all texts
+        actual_vocab = len(set(text_to_word_sequence(superText)))
+        if self.total_vocab is None:
+            self.total_vocab = actual_vocab
 
-        print("Total vocabulary:", len(tokenizer.word_index))
-        return tokenizer, texts_dico
+        print("Total vocabulary:", actual_vocab)
+        return texts_dico
 
     def display_categories(self):
         print('Total categories: {}'.format(len(self.categories)))
@@ -251,10 +254,8 @@ class Classifier:
         Build the neural network model and load weights from weight file if exists
         :return: neural network
         """
-        if self.total_vocab is None:
-            self.total_vocab = len(self.tokenizer.word_index) + 1
         model = Sequential()
-        model.add(Embedding(len(self.tokenizer.word_index),
+        model.add(Embedding((self.total_vocab + 1) // 10000 + 1,  # limitation memory
                             int(np.round(self.sequence_length * 1.5)),
                             input_length=self.sequence_length))
         model.add(Conv1D(8, 3, activation='relu'))
@@ -266,9 +267,9 @@ class Classifier:
         model.add(Conv1D(32, 3, activation='relu'))
         model.add(Dropout(0.05))
         model.add(MaxPooling1D())
-        model.add(LSTM(64, recurrent_dropout=0.07))
+        model.add(LSTM(64, recurrent_dropout=0.05))
         model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.1))
+        model.add(Dropout(0.05))
         model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer='nadam', loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -301,7 +302,7 @@ class Classifier:
             x_test, y_test = self.mix_datas()
 
             self.model.fit(datas, target,
-                           batch_size=16, epochs=1,
+                           batch_size=16, epochs=3,
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])

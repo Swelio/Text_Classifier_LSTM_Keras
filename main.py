@@ -15,8 +15,9 @@ if __name__ == '__main__':
     detector = Classifier(resources,
                           weights_file='CNN_authors',
                           classifier_save_path='CNN_authors_detector',
+                          total_vocab=300000,
                           fit_epochs=10,
-                          data_size_max=10,
+                          data_size_max=5,
                           sequence_length=200,
                           reuse_datas=True)
     detector.display_prediction(test)
