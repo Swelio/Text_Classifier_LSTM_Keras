@@ -11,6 +11,7 @@ from classifier_class import Classifier
 if __name__ == '__main__':
     resources = '.'
     test = '.'
+    test2 = '.'
 
     detector = Classifier(resources,
                           weights_file='CNN_authors',
@@ -20,4 +21,4 @@ if __name__ == '__main__':
                           data_size_max=5,
                           sequence_length=200,
                           reuse_datas=False)
-    detector.display_prediction(test)
+    detector.display_prediction([test, test2])

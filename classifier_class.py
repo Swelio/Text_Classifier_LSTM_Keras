@@ -307,7 +307,7 @@ class Classifier:
             x_test, y_test = self.mix_datas()
 
             self.model.fit(datas, target,
-                           batch_size=16, epochs=1,
+                           batch_size=16, epochs=3,
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
@@ -327,7 +327,7 @@ class Classifier:
         prediction = results / num  # make the average (to avoid error with bad extracts)
         return prediction.reshape(prediction.shape[1:])
 
-    def display_prediction(self, filepath, num=30, limit=0):
+    def display(self, filepath, num=30, limit=0):
         """ Display prediction """
         # prepare a display name
         name = os.path.join(os.path.basename(os.path.dirname(filepath)), os.path.basename(filepath))
@@ -344,3 +344,12 @@ class Classifier:
         print('Predictions for:', name)
         for e in results[:limit]:  # display each category with its result
             print("{0:.2f}% - {1}".format(np.round(e[0] * 100, 2), e[1]))
+        print()
+
+    def display_prediction(self, file, num=30, limit=0):
+        """ Display predictions for a list of texts """
+        if type(file) in (tuple, list):
+            for path in file:
+                self.display(path, num=num, limit=limit)
+        elif type(file) is str:
+            self.display(file, num=num, limit=limit)
