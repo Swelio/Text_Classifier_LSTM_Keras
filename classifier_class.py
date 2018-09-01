@@ -320,8 +320,8 @@ class Classifier:
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
-            self.load_weights(self.weights_file)
             self.save_classifier()  # save classifier
+        self.load_weights(self.weights_file)
         self.save_weights(self.weights_file)
         print()
 

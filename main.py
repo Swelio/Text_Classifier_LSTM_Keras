@@ -20,5 +20,5 @@ if __name__ == '__main__':
                           fit_epochs=20,
                           data_size_max=5,
                           sequence_length=200,
-                          reuse_datas=False)
+                          reuse_datas=True)
     detector.display_prediction([test, test2])
