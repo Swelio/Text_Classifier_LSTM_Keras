@@ -254,7 +254,9 @@ class Classifier:
         if self.total_vocab is None:
             self.total_vocab = len(self.tokenizer.word_index) + 1
         model = Sequential()
-        model.add(Embedding(self.sequence_length, int(np.round(self.sequence_length * 1.5))))
+        model.add(Embedding(len(self.tokenizer.word_index),
+                            int(np.round(self.sequence_length * 1.5)),
+                            input_length=self.sequence_length))
         model.add(Conv1D(8, 3, activation='relu'))
         model.add(Dropout(0.05))
         model.add(MaxPooling1D())
