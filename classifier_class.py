@@ -352,4 +352,8 @@ class Classifier:
             for path in file:
                 self.display(path, num=num, limit=limit)
         elif type(file) is str:
-            self.display(file, num=num, limit=limit)
+            if os.path.isdir(file):
+                files = glob.glob(os.path.join(file, '*.txt'))
+                self.display_prediction(files, num=num, limit=limit)
+            else:
+                self.display(file, num=num, limit=limit)
