@@ -72,6 +72,8 @@ class Classifier:
             weights_file += '.h5'
         self.weights_file = weights_file
         self.checkpoint = checkpoint
+        self.optimizer = 'Nadam'
+        self.loss = 'categorical_crossentropy'
         self.model = self._buildnet()  # build neural network model
         self.fit_on_all(epochs=fit_epochs)  # fit neural network from data files
 
@@ -91,6 +93,7 @@ class Classifier:
         state['model'].set_weights(state['weights'])
         del state['weights']
         self.__dict__.update(state)
+        self.model.compile(optimizer=self.optimizer, loss=self.loss)
 
     def save_classifier(self):
         self.save_weights(self.weights_file)
@@ -218,20 +221,21 @@ class Classifier:
         for dir_path in resources_dir:  # explore resources directory
             temp_path = os.path.join(resources_path, dir_path)
             if os.path.isdir(temp_path):  # look for a category directory
-                self.categories.append(dir_path)  # append category in knowns
                 texts_pathes = glob.glob(os.path.join(temp_path, '*.txt'))
-                category_text = ""
-                for text_file in texts_pathes:  # look for source texts
-                    try:
-                        # read text file
-                        with open(text_file, 'r', encoding='utf-8') as file:
-                            text = file.read()
-                        text = self.format_text(source_text=text)
-                        category_text += text  # append text to the global category text
-                    except (FileNotFoundError, OSError) as e:
-                        print(e)
-                superText += category_text + ' '  # append the global category text to the global text
-                texts_dico[dir_path] = category_text  # register category text into knowns categories
+                if len(texts_pathes) > 0:  # avoid empty folder
+                    self.categories.append(dir_path)  # append category in knowns
+                    category_text = ""
+                    for text_file in texts_pathes:  # look for source texts
+                        try:
+                            # read text file
+                            with open(text_file, 'r', encoding='utf-8') as file:
+                                text = file.read()
+                            text = self.format_text(source_text=text)
+                            category_text += text  # append text to the global category text
+                        except (FileNotFoundError, OSError) as e:
+                            print(e)
+                    superText += category_text + ' '  # append the global category text to the global text
+                    texts_dico[dir_path] = category_text  # register category text into knowns categories
 
         self.display_categories()  # display knowns categories
 
@@ -256,9 +260,9 @@ class Classifier:
         :return: neural network
         """
         model = Sequential()
-        model.add(Embedding((self.total_vocab + 1) // self.vocab_coeff + 1,  # limitation memory
+        model.add(Embedding(int((self.total_vocab + 1) // self.vocab_coeff + 1),  # limitation memory
                             int(np.round(self.sequence_length * 1.5)),
-                            input_length=self.sequence_length))
+                            input_length=int(self.sequence_length)))
         model.add(Conv1D(8, 3, activation='relu'))
         model.add(Dropout(0.05))
         model.add(MaxPooling1D())
@@ -272,7 +276,7 @@ class Classifier:
         model.add(Dense(64, activation='relu'))
         model.add(Dropout(0.05))
         model.add(Dense(len(self.categories), activation='softmax'))
-        model.compile(optimizer='nadam', loss='categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
 
         try:
             model.load_weights(self.weights_file)
@@ -303,7 +307,7 @@ class Classifier:
             x_test, y_test = self.mix_datas()
 
             self.model.fit(datas, target,
-                           batch_size=16, epochs=3,
+                           batch_size=16, epochs=1,
                            validation_data=(x_test, y_test),
                            verbose=1,
                            callbacks=[self.checkpoint])
