@@ -17,7 +17,7 @@ if __name__ == '__main__':
                           weights_file='CNN_authors',
                           classifier_save_path='CNN_authors_detector',
                           fit_epochs=10,
-                          data_size_max=15,
+                          data_size_max=7,
                           sequence_length=200,
                           reuse_datas=False)
     detector.display_prediction([test, test2])

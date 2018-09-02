@@ -72,7 +72,7 @@ class Classifier:
             weights_file += '.h5'
         self.weights_file = weights_file
         self.checkpoint = checkpoint
-        self.optimizer = 'Nadam'
+        self.optimizer = 'Adam'
         self.loss = 'categorical_crossentropy'
         self.model = self._buildnet()  # build neural network model
         self.fit_on_all(epochs=fit_epochs)  # fit neural network from data files
@@ -140,6 +140,8 @@ class Classifier:
 
         for category, textList in texts_dico.items():
             targetIndex = self.categories.index(category)
+            index = 0
+            count = [0] * len(textList)
             for files in range(self.file_by_class):
                 print('[{}] File {} on {}'.format(category, files + 1, self.file_by_class))
                 filename = os.path.join(self.data_dir, category + str(files))
@@ -148,12 +150,11 @@ class Classifier:
                         continue
                 datas, target = [], []
                 while sys.getsizeof(np.array(datas)) < self.data_size_max:
-                    text = np.random.choice(textList, 1)[0]
-
-                    piece = self.extract_datas(text)
-
-                    if piece not in datas:
-                        datas.append(piece)
+                    text = textList[index]  # pick sequence of each text
+                    index = (index + 1) % len(textList)
+                    piece = self.extract_datas(text, count[index])
+                    count[index] = (count[index] + self.sequence_length) % len(text_to_word_sequence(text))
+                    datas.append(piece)
 
                     temp_target = [0.] * len(self.categories)
                     temp_target[targetIndex] = 1.
@@ -277,6 +278,12 @@ class Classifier:
         model.add(Conv1D(16, 3, activation='relu'))
         model.add(Dropout(0.01))
         model.add(MaxPooling1D())
+        model.add(Conv1D(32, 3, activation='relu'))
+        model.add(Dropout(0.01))
+        model.add(MaxPooling1D())
+        model.add(Conv1D(64, 3, activation='relu'))
+        model.add(Dropout(0.01))
+        model.add(MaxPooling1D())
         model.add(LSTM(64, recurrent_dropout=0.01))
         model.add(Dense(64, activation='relu'))
         model.add(Dropout(0.01))
@@ -325,16 +332,21 @@ class Classifier:
         """ Make a prediction from a text file """
         with open(filepath, 'r', encoding='utf-8') as file:
             text = file.read()  # get source text
+        text = self.format_text(text)
 
         totalWords = len(text_to_word_sequence(text))
 
-        results = np.full((1,) + self.model.output_shape[1:], 0.)
-        for i in range(totalWords - self.sequence_length):
+        prediction = np.full((1,) + self.model.output_shape[1:], 0.)
+        count = 0
+        for i in range(0, totalWords, self.sequence_length):
             data = self.extract_datas(source_text=text, index=i)  # extract some data randomly from text file
             data = data.reshape((1,) + data.shape)  # prepare it
-            results += self.model.predict(data)  # make a prediction
-        prediction = results / (
-                totalWords - self.sequence_length)  # make the average (to avoid error with bad extracts)
+            prediction += self.model.predict(data)  # make a prediction
+            count += 1
+        if count > 0:
+            prediction /= count  # make the average (to avoid error with bad extracts)
+        else:
+            print('No extraction')
         return prediction.reshape(prediction.shape[1:])
 
     def display(self, filepath, limit=0):
@@ -363,7 +375,9 @@ class Classifier:
                 self.display_prediction(path, limit=limit)
         elif type(file) is str:
             if os.path.isdir(file):
-                files = glob.glob(os.path.join(file, '*.txt'))
+                files = os.listdir(file)
+                for i in range(len(files)):
+                    files[i] = os.path.join(file, files[i])
                 self.display_prediction(files, limit=limit)
-            else:
+            elif file.endswith('.txt'):
                 self.display(file, limit=limit)
