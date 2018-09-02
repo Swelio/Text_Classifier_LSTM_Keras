@@ -20,5 +20,4 @@ if __name__ == '__main__':
                           data_size_max=7,
                           sequence_length=200,
                           reuse_datas=False)
-    detector.fit_on_all(20)
     detector.display_prediction([test, test2])
