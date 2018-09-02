@@ -61,7 +61,6 @@ class Classifier:
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
-        self.vocab_coeff = 1000.
         # initiate categories
         cat_dico = self._prepareCategories(resources_path=resources_path)
         # generate data files from resources for fitting
@@ -73,7 +72,7 @@ class Classifier:
             weights_file += '.h5'
         self.weights_file = weights_file
         self.checkpoint = checkpoint
-        self.optimizer = 'Adam'
+        self.optimizer = 'Nadam'
         self.loss = 'categorical_crossentropy'
         self.model = self._buildnet()  # build neural network model
         self.fit_on_all(epochs=fit_epochs)  # fit neural network from data files
@@ -174,14 +173,20 @@ class Classifier:
     def hash_function(x):
         return int(sha3_224(x.encode()).hexdigest(), 16)
 
-    def extract_datas(self, source_text):
+    def transform_data(self, sequence):
+        """ Transform a text into input data """
+        data = hashing_trick(sequence, np.round(self.total_vocab * 1.3), hash_function=self.hash_function)
+        data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
+        return np.reshape(data, data.shape[1:])
+
+    def extract_datas(self, source_text, index=None):
         """ Used to extract a random sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
         try:
-            # extract some random sequences from text
             temp_text = text_to_word_sequence(source_text)  # list of words
-            i = random.randint(0, len(temp_text) - self.sequence_length)  # pick sequence indice randomly
-            data = temp_text[i:i + self.sequence_length]  # pick sequence
+            if index is None:  # extract a random sequence from text
+                index = random.randint(0, len(temp_text) - self.sequence_length)  # pick sequence index randomly
+            data = temp_text[index:index + self.sequence_length]  # pick sequence
             temp_text = ""
             for word in data:  # sequence to string
                 temp_text += word + ' '
@@ -189,9 +194,7 @@ class Classifier:
         except ValueError:
             data = source_text
 
-        data = hashing_trick(data, np.round(self.total_vocab * 1.5), hash_function=self.hash_function)
-        data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
-        return np.reshape(data, data.shape[1:]) / float(self.vocab_coeff)
+        return self.transform_data(data)
 
     def mix_datas(self):
         """ Used to extract datas randomly from data files (same amount per category) """
@@ -260,29 +263,18 @@ class Classifier:
         :return: neural network
         """
 
-        input_dim = int((self.total_vocab + 1) // self.vocab_coeff + 1)
-        if self.total_vocab <= self.vocab_coeff:
-            input_dim = self.total_vocab + 1
-
         model = Sequential()
-        model.add(Embedding(input_dim,  # limitation memory
+        model.add(Embedding(self.total_vocab + 1,  # limitation memory
                             int(np.round(self.sequence_length * 1.5)),
                             input_length=int(self.sequence_length)))
-        model.add(Conv1D(4, 3, activation='relu'))
-        model.add(MaxPooling1D())
         model.add(Conv1D(8, 3, activation='relu'))
         model.add(Dropout(0.01))
         model.add(MaxPooling1D())
         model.add(Conv1D(16, 3, activation='relu'))
         model.add(Dropout(0.01))
         model.add(MaxPooling1D())
-        model.add(Conv1D(32, 3, activation='relu'))
-        model.add(Dropout(0.01))
-        model.add(MaxPooling1D())
         model.add(LSTM(64, recurrent_dropout=0.01))
-        model.add(Dense(128, activation='relu'))
-        model.add(Dropout(0.01))
-        model.add(Dense(32, activation='relu'))
+        model.add(Dense(64, activation='relu'))
         model.add(Dropout(0.01))
         model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
@@ -325,24 +317,27 @@ class Classifier:
         self.save_weights(self.weights_file)
         print()
 
-    def predict(self, filepath, num=30):
+    def predict(self, filepath):
         """ Make a prediction from a text file """
         with open(filepath, 'r', encoding='utf-8') as file:
             text = file.read()  # get source text
 
+        totalWords = len(text_to_word_sequence(text))
+
         results = np.full((1,) + self.model.output_shape[1:], 0.)
-        for i in range(num):
-            data = self.extract_datas(source_text=text)  # extract some data randomly from text file
+        for i in range(totalWords - self.sequence_length):
+            data = self.extract_datas(source_text=text, index=i)  # extract some data randomly from text file
             data = data.reshape((1,) + data.shape)  # prepare it
             results += self.model.predict(data)  # make a prediction
-        prediction = results / num  # make the average (to avoid error with bad extracts)
+        prediction = results / (
+                totalWords - self.sequence_length)  # make the average (to avoid error with bad extracts)
         return prediction.reshape(prediction.shape[1:])
 
-    def display(self, filepath, num=30, limit=0):
+    def display(self, filepath, limit=0):
         """ Display prediction """
         # prepare a display name
         name = os.path.join(os.path.basename(os.path.dirname(filepath)), os.path.basename(filepath))
-        prediction = self.predict(filepath, num=num)  # predict
+        prediction = self.predict(filepath)  # predict
 
         results = []
         for i in range(len(prediction)):  # sort predictions
@@ -357,14 +352,14 @@ class Classifier:
             print("{0:.2f}% - {1}".format(np.round(e[0] * 100, 2), e[1]))
         print()
 
-    def display_prediction(self, file, num=30, limit=0):
+    def display_prediction(self, file, limit=0):
         """ Display predictions for a list of texts """
         if type(file) in (tuple, list):
             for path in file:
-                self.display(path, num=num, limit=limit)
+                self.display(path, limit=limit)
         elif type(file) is str:
             if os.path.isdir(file):
                 files = glob.glob(os.path.join(file, '*.txt'))
-                self.display_prediction(files, num=num, limit=limit)
+                self.display_prediction(files, limit=limit)
             else:
-                self.display(file, num=num, limit=limit)
+                self.display(file, limit=limit)
