@@ -356,7 +356,7 @@ class Classifier:
         """ Display predictions for a list of texts """
         if type(file) in (tuple, list):
             for path in file:
-                self.display(path, limit=limit)
+                self.display_prediction(path, limit=limit)
         elif type(file) is str:
             if os.path.isdir(file):
                 files = glob.glob(os.path.join(file, '*.txt'))
