@@ -93,7 +93,7 @@ class Classifier:
         state['model'].set_weights(state['weights'])
         del state['weights']
         self.__dict__.update(state)
-        self.model.compile(optimizer=self.optimizer, loss=self.loss)
+        self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
 
     def save_classifier(self):
         with open(self.classifier_save_path, 'wb') as file:
@@ -153,7 +153,7 @@ class Classifier:
                     text = textList[index]  # pick sequence of each text
                     index = (index + 1) % len(textList)
                     piece = self.extract_datas(text, count[index])
-                    count[index] = (count[index] + self.sequence_length) % len(text_to_word_sequence(text))
+                    count[index] = (count[index] + self.sequence_length) % (len(text_to_word_sequence(text)))
                     datas.append(piece)
 
                     temp_target = [0.] * len(self.categories)
