@@ -138,7 +138,7 @@ class Classifier:
     def _generateDatas(self, texts_dico, overwrite=True, reuse_datas=False):
         print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
 
-        for category, text in texts_dico.items():
+        for category, textList in texts_dico.items():
             targetIndex = self.categories.index(category)
             for files in range(self.file_by_class):
                 print('[{}] File {} on {}'.format(category, files + 1, self.file_by_class))
@@ -148,8 +148,12 @@ class Classifier:
                         continue
                 datas, target = [], []
                 while sys.getsizeof(np.array(datas)) < self.data_size_max:
+                    text = np.random.choice(textList, 1)[0]
+
                     piece = self.extract_datas(text)
-                    datas.append(piece)
+
+                    if piece not in datas:
+                        datas.append(piece)
 
                     temp_target = [0.] * len(self.categories)
                     temp_target[targetIndex] = 1.
@@ -227,17 +231,17 @@ class Classifier:
                 texts_pathes = glob.glob(os.path.join(temp_path, '*.txt'))
                 if len(texts_pathes) > 0:  # avoid empty folder
                     self.categories.append(dir_path)  # append category in knowns
-                    category_text = ""
+                    category_text = []
                     for text_file in texts_pathes:  # look for source texts
                         try:
                             # read text file
                             with open(text_file, 'r', encoding='utf-8') as file:
                                 text = file.read()
                             text = self.format_text(source_text=text)
-                            category_text += text  # append text to the global category text
+                            category_text.append(text)
+                            superText += text + ' '
                         except (FileNotFoundError, OSError) as e:
                             print(e)
-                    superText += category_text + ' '  # append the global category text to the global text
                     texts_dico[dir_path] = category_text  # register category text into knowns categories
 
         self.display_categories()  # display knowns categories
@@ -246,7 +250,7 @@ class Classifier:
         if self.total_vocab is None:
             self.total_vocab = actual_vocab
 
-        print("Total vocabulary:", actual_vocab)
+        print("Total vocabulary: {} (maximum: {})".format(actual_vocab, self.total_vocab))
         return texts_dico
 
     def display_categories(self):
