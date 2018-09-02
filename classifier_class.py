@@ -264,7 +264,7 @@ class Classifier:
         """
 
         model = Sequential()
-        model.add(Embedding(self.total_vocab + 1,  # limitation memory
+        model.add(Embedding(self.total_vocab + 1,
                             int(np.round(self.sequence_length * 1.5)),
                             input_length=int(self.sequence_length)))
         model.add(Conv1D(8, 3, activation='relu'))
