@@ -27,6 +27,7 @@ class Classifier:
     def __init__(self,
                  resources_path,
                  classifier_save_path='my_classifier',
+                 data_per_categorie=1.,
                  file_by_class=1,
                  data_size_max=50,
                  data_dir='Datas',
@@ -58,6 +59,7 @@ class Classifier:
         self.file_by_class = file_by_class  # files generated for each class
 
         # --- DATA TREATMENT ---
+        self.data_per_categorie = self.byte_to_mb * data_per_categorie  # amount of data per categorie in batch
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = []
@@ -209,8 +211,9 @@ class Classifier:
             temp_path = glob.glob(os.path.join(self.data_dir, category + '*'))
             temp_path = random.choice(temp_path)
             temp_datas, temp_target = self.load_datas(temp_path)
-            number = temp_datas.shape[0] // len(self.categories)
-            for i in range(number):
+            # number = temp_datas.shape[0] // len(self.categories)
+            # for i in range(number):
+            while sys.getsizeof(np.array(datas)) < self.data_per_categorie:
                 index = random.randint(0, temp_datas.shape[0] - 1)
                 datas.append(temp_datas[index])
                 target.append(temp_target[index])
