@@ -14,11 +14,12 @@ if __name__ == '__main__':
     test2 = '.'
 
     detector = Classifier(resources,
-                          weights_file='CNN_authors',
-                          classifier_save_path='CNN_authors_detector',
+                          weights_file='CNN_languages',
+                          classifier_save_path='CNN_languages_detector',
                           data_per_categorie=1.,  # amount of data loaded in batch for each category
-                          fit_epochs=40,
+                          fit_epochs=10,
                           data_size_max=5,
                           sequence_length=200,
-                          reuse_datas=False)
+                          reuse_datas=False,
+                          letter_mode=True)
     detector.display_prediction([test, test2])

@@ -37,7 +37,8 @@ class Classifier:
                  checkpoint=None,
                  fit_epochs=2,
                  overwrite=True,
-                 reuse_datas=False):
+                 reuse_datas=False,
+                 letter_mode=False):
         # --- INIT CONTEXT ---
         random.seed()
         if os.path.exists(classifier_save_path) and os.path.isfile(classifier_save_path):
@@ -59,6 +60,7 @@ class Classifier:
         self.file_by_class = file_by_class  # files generated for each class
 
         # --- DATA TREATMENT ---
+        self.letter_mode = letter_mode
         self.data_per_categorie = self.byte_to_mb * data_per_categorie  # amount of data per categorie in batch
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
@@ -190,7 +192,10 @@ class Classifier:
         """ Used to extract a random sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
         try:
-            temp_text = text_to_word_sequence(source_text)  # list of words
+            if self.letter_mode:
+                temp_text = source_text.replace(' ', '')
+            else:
+                temp_text = text_to_word_sequence(source_text)  # list of words
             if index is None:  # extract a random sequence from text
                 index = random.randint(0, len(temp_text) - self.sequence_length)  # pick sequence index randomly
             data = temp_text[index:index + self.sequence_length]  # pick sequence
