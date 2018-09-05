@@ -255,7 +255,10 @@ class Classifier:
 
         self.display_categories()  # display knowns categories
 
-        actual_vocab = len(set(text_to_word_sequence(superText)))
+        if self.letter_mode:
+            actual_vocab = len(set(superText.replace(' ', '')))
+        else:
+            actual_vocab = len(set(text_to_word_sequence(superText)))
         if self.total_vocab is None:
             self.total_vocab = actual_vocab
 
