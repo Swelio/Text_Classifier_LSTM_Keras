@@ -142,7 +142,7 @@ class Classifier:
         print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
 
         for category, textList in texts_dico.items():
-            print('[{0}] '.format(category), end='', flush=True)
+            print('[ {0} ] '.format(category), end='', flush=True)
             index = 0  # index of text from pick data
             count = [0] * len(textList)  # indexes for each text of sequences
             completed = 0  # number of files extracted
@@ -165,7 +165,7 @@ class Classifier:
                 self.save_datas(np.array(datas), filename, overwrite=overwrite)
                 created_files += 1
             print('-> {0} File{1} created'.format(created_files, chr(ord('s') * (created_files - 1))))
-        print('Datas extracted\n')
+        print('Data extracted\n')
 
     @staticmethod
     def format_text(source_text):
