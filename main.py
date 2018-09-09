@@ -17,7 +17,7 @@ if __name__ == '__main__':
                           weights_file='CNN_languages',
                           classifier_save_path='CNN_languages_detector',
                           data_per_categorie=1.,  # amount of data loaded in batch for each category
-                          fit_epochs=20,
+                          fit_epochs=10,
                           data_size_max=10,
                           sequence_length=2000,
                           reuse_datas=False,

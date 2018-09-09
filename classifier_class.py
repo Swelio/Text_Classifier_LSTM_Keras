@@ -348,15 +348,19 @@ class Classifier:
         # --- FITTING LOOP ---
         for i in range(1, epochs + 1):
             print('\nTraining epoch: {} / {}'.format(i, epochs))
-            datas, target = self.mix_datas()
-            x_test, y_test = self.mix_datas()
+            while True:
+                datas, target = self.mix_datas()
+                x_test, y_test = self.mix_datas()
 
-            self.model.fit(datas, target,
-                           batch_size=16, epochs=1,
-                           validation_data=(x_test, y_test),
-                           verbose=1,
-                           callbacks=[self.checkpoint])
-            self.save_classifier()  # save classifier
+                if len(datas) == 0:
+                    break
+
+                self.model.fit(datas, target,
+                               batch_size=len(datas) // 30, epochs=1,
+                               validation_data=(x_test, y_test),
+                               verbose=1,
+                               callbacks=[self.checkpoint])
+                self.save_classifier()  # save classifier
         self.load_weights(self.weights_file)
         self.save_weights(self.weights_file)
         print()
