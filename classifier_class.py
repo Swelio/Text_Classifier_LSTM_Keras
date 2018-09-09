@@ -12,6 +12,7 @@ import numpy as np
 import pickle
 import random
 from hashlib import sha3_224
+import string
 
 from keras.callbacks import ModelCheckpoint
 from keras.models import Sequential, model_from_json
@@ -28,7 +29,6 @@ class Classifier:
                  resources_path,
                  classifier_save_path='my_classifier',
                  data_per_categorie=1.,
-                 file_by_class=1,
                  data_size_max=50,
                  data_dir='Datas',
                  sequence_length=100,
@@ -57,7 +57,6 @@ class Classifier:
         self.data_dir = data_dir
         self.byte_to_mb = 1048576
         self.data_size_max = self.byte_to_mb * data_size_max  # in bytes
-        self.file_by_class = file_by_class  # files generated for each class
 
         # --- DATA TREATMENT ---
         self.letter_mode = letter_mode
@@ -143,23 +142,29 @@ class Classifier:
         print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
 
         for category, textList in texts_dico.items():
-            index = 0
-            count = [0] * len(textList)
-            for files in range(self.file_by_class):
-                print('[{}] File {} on {}'.format(category, files + 1, self.file_by_class))
-                filename = os.path.join(self.data_dir, category + str(files))
+            print('[{0}] '.format(category), end='', flush=True)
+            index = 0  # index of text from pick data
+            count = [0] * len(textList)  # indexes for each text of sequences
+            completed = 0  # number of files extracted
+            created_files = 0  # number of data files created
+            while completed < len(textList):
+                filename = os.path.join(self.data_dir, category + str(created_files))
                 if reuse_datas:
                     if os.path.exists(filename):
-                        continue
+                        break
                 datas = []
-                while sys.getsizeof(np.array(datas)) < self.data_size_max:
+                while completed < len(textList) and sys.getsizeof(np.array(datas)) < self.data_size_max:
                     text = textList[index]  # pick sequence of each text
-                    index = (index + 1) % len(textList)
-                    piece = self.extract_datas(text, count[index])
-                    count[index] = (count[index] + self.sequence_length) % (len(text_to_word_sequence(text)))
-                    datas.append(piece)
+                    if count[index] <= len(text) - self.sequence_length:
+                        piece = self.extract_datas(text, count[index])
+                        count[index] += 1
+                        datas.append(piece)
+                    else:
+                        completed += 1
+                    index = (index + 1) % len(textList)  # go to next text
                 self.save_datas(np.array(datas), filename, overwrite=overwrite)
-
+                created_files += 1
+            print('-> {0} File{1} created'.format(created_files, chr(ord('s') * (created_files - 1))))
         print('Datas extracted\n')
 
     @staticmethod
@@ -169,7 +174,7 @@ class Classifier:
         :param source_text: string
         :return: string
         """
-        for sign in ('\n', '\ufeff', '\r'):
+        for sign in ('\n', '\ufeff', '\r') + tuple(string.punctuation.split()):
             source_text = source_text.replace(sign, ' ')
         return source_text
 
@@ -184,7 +189,7 @@ class Classifier:
         return np.reshape(data, data.shape[1:])
 
     def extract_datas(self, source_text, index=None):
-        """ Used to extract a random sequence from a string """
+        """ Used to extract a sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
         try:
             if self.letter_mode:
@@ -237,7 +242,7 @@ class Classifier:
         return datas, target
 
     def _load_from_file(self, category):
-        temp_path = os.path.join(self.data_dir, category + self.categories.get(category).get('fileIndex'))
+        temp_path = os.path.join(self.data_dir, category + str(self.categories.get(category).get('fileIndex')))
         return self.load_datas(temp_path)
 
     def _prepareCategories(self, resources_path):
