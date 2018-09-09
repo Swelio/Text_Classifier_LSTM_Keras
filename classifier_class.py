@@ -64,7 +64,7 @@ class Classifier:
         self.data_per_categorie = self.byte_to_mb * data_per_categorie  # amount of data per categorie in batch
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
-        self.categories = []
+        self.categories = {}
         # initiate categories
         cat_dico = self._prepareCategories(resources_path=resources_path)
         # generate data files from resources for fitting
@@ -109,7 +109,7 @@ class Classifier:
             classifier = pickle.Unpickler(file).load()
         return classifier
 
-    def save_datas(self, datas, target, filename, overwrite=False):
+    def save_datas(self, datas, filename, overwrite=False):
         # --- PATH CONTROL ---
         if self.data_dir not in filename:
             filename = os.path.join(self.data_dir, filename)
@@ -124,7 +124,7 @@ class Classifier:
             filename += str(num)
         # --- SAVING ---
         with open(filename, 'wb') as file:
-            pickle.Pickler(file).dump([datas, target])
+            pickle.Pickler(file).dump(datas)
 
     def load_datas(self, filename=None):
         # --- PATH CONTROL ---
@@ -135,15 +135,14 @@ class Classifier:
             filename = os.path.join(self.data_dir, filename)
         # --- READING DATAS ---
         with open(filename, 'rb') as file:
-            datas, target = pickle.Unpickler(file).load()
+            datas = pickle.Unpickler(file).load()
         # --- RETURN ---
-        return datas, target
+        return datas
 
     def _generateDatas(self, texts_dico, overwrite=True, reuse_datas=False):
         print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
 
         for category, textList in texts_dico.items():
-            targetIndex = self.categories.index(category)
             index = 0
             count = [0] * len(textList)
             for files in range(self.file_by_class):
@@ -152,18 +151,14 @@ class Classifier:
                 if reuse_datas:
                     if os.path.exists(filename):
                         continue
-                datas, target = [], []
+                datas = []
                 while sys.getsizeof(np.array(datas)) < self.data_size_max:
                     text = textList[index]  # pick sequence of each text
                     index = (index + 1) % len(textList)
                     piece = self.extract_datas(text, count[index])
                     count[index] = (count[index] + self.sequence_length) % (len(text_to_word_sequence(text)))
                     datas.append(piece)
-
-                    temp_target = [0.] * len(self.categories)
-                    temp_target[targetIndex] = 1.
-                    target.append(temp_target)
-                self.save_datas(np.array(datas), np.array(target), filename, overwrite=overwrite)
+                self.save_datas(np.array(datas), filename, overwrite=overwrite)
 
         print('Datas extracted\n')
 
@@ -209,29 +204,48 @@ class Classifier:
         return self.transform_data(data)
 
     def mix_datas(self):
-        """ Used to extract datas randomly from data files (same amount per category) """
+        """ Used to extract datas from data files (same amount per category if possible) """
         datas, target = [], []
 
-        for category in self.categories:
-            temp_path = glob.glob(os.path.join(self.data_dir, category + '*'))
-            temp_path = random.choice(temp_path)
-            temp_datas, temp_target = self.load_datas(temp_path)
-            # number = temp_datas.shape[0] // len(self.categories)
-            # for i in range(number):
-            while sys.getsizeof(np.array(datas)) < self.data_per_categorie:
-                index = random.randint(0, temp_datas.shape[0] - 1)
+        for category in self.categories.keys():  # for each known category
+            total_files = len(glob.glob(os.path.join(self.data_dir, category + '*')))  # count all files of category
+            temp_datas = self._load_from_file(category)  # load datas from first file
+            # --- DATA EXTRACTION ---
+            while (sys.getsizeof(np.array(datas)) < self.data_per_categorie  # byte size limit for memory secure
+                   and self.categories.get(category).get('fileIndex') < total_files):
+                index = self.categories.get(category).get('inFileIndex')
+                self.categories.get(category)['inFileIndex'] += 1
+                if index == len(temp_datas):  # all data file has been read
+                    self.categories.get(category)['fileIndex'] += 1  # go to next data file
+                    self.categories.get(category)['fileIndex'] %= total_files
+                    self.categories.get(category)['inFileIndex'] = 0  # initialize reading at first index
+                    try:
+                        temp_datas = self._load_from_file(category)  # load datas from file
+                    except FileNotFoundError:
+                        continue
                 datas.append(temp_datas[index])
-                target.append(temp_target[index])
+            datas = set(datas)  # remove multiple same inputs
+            # --- PREPARING TARGET ---
+            temp_target = [0.] * len(self.categories)
+            temp_target[self.categories.get(category).get('index')] = 1.
+            # --- ADD TARGET TO GLOBAL BATCH ---
+            target.append([temp_target * len(datas)])
 
+        # --- CONVERT TO NUMPY ARRAYS ---
         datas, target = np.array(datas), np.array(target)
 
         return datas, target
+
+    def _load_from_file(self, category):
+        temp_path = os.path.join(self.data_dir, category + self.categories.get(category).get('fileIndex'))
+        return self.load_datas(temp_path)
 
     def _prepareCategories(self, resources_path):
         """ Register vocabulary and categories """
         texts_dico = {}
         superText = ''
         resources_dir = os.listdir(resources_path)
+        cat_index = 0
 
         # --- REGISTER CATEGORIES FROM SOURCES ---
         for dir_path in resources_dir:  # explore resources directory
@@ -239,7 +253,10 @@ class Classifier:
             if os.path.isdir(temp_path):  # look for a category directory
                 texts_pathes = glob.glob(os.path.join(temp_path, '*.txt'))
                 if len(texts_pathes) > 0:  # avoid empty folder
-                    self.categories.append(dir_path)  # append category in knowns
+                    self.categories[dir_path] = {'index': cat_index,  # append category in knowns
+                                                 'fileIndex': 0,
+                                                 'inFileIndex': 0}
+                    cat_index += 1
                     category_text = []
                     for text_file in texts_pathes:  # look for source texts
                         try:
@@ -267,9 +284,9 @@ class Classifier:
 
     def display_categories(self):
         print('Total categories: {}'.format(len(self.categories)))
-        for category in self.categories:
+        for category in self.categories.keys():
             end = ' - '
-            if self.categories.index(category) == len(self.categories) - 1:
+            if self.categories.get(category).get('index') == len(self.categories) - 1:
                 end = '\n' * 2
             print(category, end=end)
 
@@ -339,6 +356,13 @@ class Classifier:
         self.save_weights(self.weights_file)
         print()
 
+    @staticmethod
+    def search_index(dico, index):
+        for key, values in dico.items():
+            if index == values.get('index'):
+                return key
+        return ''
+
     def predict(self, filepath):
         """ Make a prediction from a text file """
         with open(filepath, 'r', encoding='utf-8') as file:
@@ -368,7 +392,7 @@ class Classifier:
 
         results = []
         for i in range(len(prediction)):  # sort predictions
-            results.append([prediction[i], self.categories[i]])
+            results.append([prediction[i], self.search_index(self.categories, i)])
         results = sorted(results, key=lambda res: res[0], reverse=True)
 
         if not limit:
