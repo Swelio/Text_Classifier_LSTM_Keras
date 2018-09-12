@@ -376,14 +376,12 @@ class Classifier:
             print('\nTraining epoch: {} / {}'.format(i, epochs))
             while True:
                 datas, target = self.mix_datas()
-                x_test, y_test = self.mix_datas()
 
                 if len(datas) == 0:
                     break
 
                 self.model.fit(datas, target,
-                               batch_size=len(datas) // 30, epochs=1,
-                               validation_data=(x_test, y_test),
+                               batch_size=16, epochs=1,
                                verbose=1,
                                callbacks=[self.checkpoint])
                 self.save_classifier()  # save classifier
