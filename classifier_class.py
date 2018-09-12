@@ -28,7 +28,7 @@ class Classifier:
     def __init__(self,
                  resources_path,
                  classifier_save_path='my_classifier',
-                 data_per_categorie=1.,
+                 data_per_batch=10.,
                  data_size_max=50,
                  data_dir='Datas',
                  sequence_length=100,
@@ -60,7 +60,7 @@ class Classifier:
 
         # --- DATA TREATMENT ---
         self.letter_mode = letter_mode
-        self.data_per_categorie = self.byte_to_mb * data_per_categorie  # amount of data per categorie in batch
+        self.data_per_batch = self.byte_to_mb * data_per_batch  # amount of data per categorie in batch
         self.sequence_length = sequence_length  # characters number
         self.total_vocab = total_vocab  # known letters number
         self.categories = {}
@@ -75,7 +75,7 @@ class Classifier:
             weights_file += '.h5'
         self.weights_file = weights_file
         self.checkpoint = checkpoint
-        self.optimizer = 'Adam'
+        self.optimizer = 'rmsprop'
         self.loss = 'categorical_crossentropy'
         self.model = self._buildnet()  # build neural network model
         self.fit_on_all(epochs=fit_epochs)  # fit neural network from data files
@@ -223,14 +223,16 @@ class Classifier:
 
     def mix_datas(self):
         """ Used to extract datas from data files (same amount per category if possible) """
+
         datas, target = [], []
+        max_per_category = self.data_per_batch / len(self.categories)
 
         for category in self.categories.keys():  # for each known category
             total_files = len(glob.glob(os.path.join(self.data_dir, category + '*')))  # count all files of category
             temp_datas = self._load_from_file(category)  # load datas from first file
             cat_datas = []
             # --- DATA EXTRACTION ---
-            while (sys.getsizeof(np.array(cat_datas)) < self.data_per_categorie  # byte size limit for memory secure
+            while (sys.getsizeof(np.array(cat_datas)) < max_per_category  # byte size limit for memory secure
                    and self.categories.get(category).get('fileIndex') < total_files):  # each file read one time
                 index = self.categories.get(category).get('inFileIndex')  # index of sequence in data
                 self.categories.get(category)['inFileIndex'] += 1  # prepare the next index
@@ -331,21 +333,21 @@ class Classifier:
         model.add(Embedding(self.total_vocab + 1,
                             int(np.round(self.sequence_length * 1.5)),
                             input_length=int(self.sequence_length)))
+        model.add(Conv1D(4, 3, activation='relu'))
+        model.add(Dropout(0.05))
+        model.add(MaxPooling1D())
         model.add(Conv1D(8, 3, activation='relu'))
-        model.add(Dropout(0.01))
+        model.add(Dropout(0.05))
+        model.add(MaxPooling1D())
+        model.add(Conv1D(8, 3, activation='relu'))
+        model.add(Dropout(0.05))
         model.add(MaxPooling1D())
         model.add(Conv1D(16, 3, activation='relu'))
-        model.add(Dropout(0.01))
+        model.add(Dropout(0.05))
         model.add(MaxPooling1D())
-        model.add(Conv1D(32, 3, activation='relu'))
-        model.add(Dropout(0.01))
-        model.add(MaxPooling1D())
-        model.add(Conv1D(64, 3, activation='relu'))
-        model.add(Dropout(0.01))
-        model.add(MaxPooling1D())
-        model.add(LSTM(64, recurrent_dropout=0.01))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.01))
+        model.add(LSTM(64, return_sequences=False, recurrent_dropout=0.05))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dropout(0.05))
         model.add(Dense(len(self.categories), activation='softmax'))
         model.compile(optimizer=self.optimizer, loss=self.loss, metrics=['accuracy'])
 
