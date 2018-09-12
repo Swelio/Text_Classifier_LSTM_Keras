@@ -136,7 +136,6 @@ class Classifier:
         with open(filename, 'rb') as file:
             datas = pickle.Unpickler(file).load()
         # --- RETURN ---
-        print(datas.shape)
         return datas
 
     def _generateDatas(self, texts_dico, overwrite=True, reuse_datas=False):
@@ -152,6 +151,7 @@ class Classifier:
                 filename = os.path.join(self.data_dir, category + str(created_files))
                 if reuse_datas:
                     if os.path.exists(filename):
+                        created_files += 1
                         break
                 datas = []
                 while completed < len(textList) and sys.getsizeof(np.array(datas)) < self.data_size_max:
@@ -189,13 +189,13 @@ class Classifier:
         data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
         return np.reshape(data, data.shape[1:])
 
-    def extract_datas(self, source_text, index):
+    def extract_datas(self, source_text, index=0):
         """ Used to extract a sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
         if self.letter_mode:
             temp_text = source_text
             data = ""
-            i = 0
+            i = index
             while i < len(temp_text) and len(data) < self.sequence_length:
                 if temp_text[i] != ' ':  # skip spaces
                     if temp_text[i] in string.punctuation:  # add punctuation individually
@@ -203,7 +203,7 @@ class Classifier:
                     else:
                         # --- MEASURE WORD ---
                         long = 0
-                        while temp_text[i + long] not in string.punctuation + ' ':
+                        while i + long < len(temp_text) and temp_text[i + long] not in string.punctuation + ' ':
                             long += 1
                         if i + long < len(temp_text) and len(data) + long <= self.sequence_length:
                             data += temp_text[i:i + long]
@@ -241,17 +241,26 @@ class Classifier:
                         temp_datas = self._load_from_file(category)  # load datas from file
                     except FileNotFoundError:
                         continue
-                elif temp_datas[index].tolist() not in cat_datas:
-                    cat_datas.append(temp_datas[index].tolist())  # extract one sequence
+                else:
+                    c = True
+                    for raw in cat_datas:
+                        if np.array_equal(raw, temp_datas[index]):
+                            c = False
+                            break
+                    if c:
+                        cat_datas.append(temp_datas[index])  # extract one sequence
             self.categories.get(category)['fileIndex'] = 0
 
             # --- PREPARING TARGET ---
             temp_target = [0.] * len(self.categories)
             temp_target[self.categories.get(category).get('index')] = 1.
+            temp_target = [temp_target] * len(cat_datas)
+
             # --- ADD TARGET TO LOCAL BATCH ---
-            target.append([temp_target * len(cat_datas)])
+            target += temp_target
+
             # --- ADD DATA TO GLOBAL BATCH ---
-            datas.append(cat_datas)
+            datas += cat_datas
 
         # --- CONVERT TO NUMPY ARRAYS ---
         datas, target = np.array(datas), np.array(target)
