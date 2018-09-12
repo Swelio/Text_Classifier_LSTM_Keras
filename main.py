@@ -14,8 +14,8 @@ if __name__ == '__main__':
     test2 = '.'
 
     detector = Classifier(resources,
-                          weights_file='CNN_languages',
-                          classifier_save_path='CNN_languages_detector',
+                          weights_file='languages',
+                          classifier_save_path='languages_detector',
                           data_per_batch=50.,  # amount of data loaded in batch for each category
                           fit_epochs=50,
                           data_size_max=10,

@@ -234,9 +234,11 @@ class Classifier:
             # --- DATA EXTRACTION ---
             while (sys.getsizeof(np.array(cat_datas)) < max_per_category  # byte size limit for memory secure
                    and self.categories.get(category).get('fileIndex') < total_files):  # each file read one time
+
                 index = self.categories.get(category).get('inFileIndex')  # index of sequence in data
                 self.categories.get(category)['inFileIndex'] += 1  # prepare the next index
-                if index == len(temp_datas):  # all data file has been read
+
+                if index == len(temp_datas):  # all data in file has been read
                     self.categories.get(category)['fileIndex'] += 1  # go to next data file
                     self.categories.get(category)['inFileIndex'] = 0  # initialize reading at first index
                     try:
@@ -251,7 +253,6 @@ class Classifier:
                             break
                     if c:
                         cat_datas.append(temp_datas[index])  # extract one sequence
-            self.categories.get(category)['fileIndex'] = 0
 
             # --- PREPARING TARGET ---
             temp_target = [0.] * len(self.categories)
@@ -380,6 +381,9 @@ class Classifier:
                 datas, target = self.mix_datas()
 
                 if len(datas) == 0:
+                    for value in self.categories.values():
+                        value['fileIndex'] = 0
+                        value['inFileIndex'] = 0
                     break
 
                 self.model.fit(datas, target,
