@@ -270,7 +270,10 @@ class Classifier:
 
         return datas, target
 
-    def _load_from_file(self, category):
+    def _load_from_file(self, category, total=None):
+        if total is None:
+            total = len(glob.glob(os.path.join(self.data_dir, category + '*')))  # count all files of category
+        self.categories.get(category)['fileIndex'] %= total
         temp_path = os.path.join(self.data_dir, category + str(self.categories.get(category).get('fileIndex')))
         return self.load_datas(temp_path)
 
