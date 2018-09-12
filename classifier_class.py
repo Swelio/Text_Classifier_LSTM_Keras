@@ -136,10 +136,11 @@ class Classifier:
         with open(filename, 'rb') as file:
             datas = pickle.Unpickler(file).load()
         # --- RETURN ---
+        print(datas.shape)
         return datas
 
     def _generateDatas(self, texts_dico, overwrite=True, reuse_datas=False):
-        print('Generate files of {} MB each'.format(self.data_size_max / self.byte_to_mb))
+        print('Generate files of {} MB maximum for each'.format(self.data_size_max / self.byte_to_mb))
 
         for category, textList in texts_dico.items():
             print('[ {0} ] '.format(category), end='', flush=True)
@@ -147,7 +148,7 @@ class Classifier:
             count = [0] * len(textList)  # indexes for each text of sequences
             completed = 0  # number of files extracted
             created_files = 0  # number of data files created
-            while completed < len(textList):
+            while completed < len(textList):  # while each text has not been totally read
                 filename = os.path.join(self.data_dir, category + str(created_files))
                 if reuse_datas:
                     if os.path.exists(filename):
@@ -157,7 +158,7 @@ class Classifier:
                     text = textList[index]  # pick sequence of each text
                     if count[index] <= len(text) - self.sequence_length:
                         piece = self.extract_datas(text, count[index])
-                        count[index] += 1
+                        count[index] += self.sequence_length
                         datas.append(piece)
                     else:
                         completed += 1
@@ -174,9 +175,9 @@ class Classifier:
         :param source_text: string
         :return: string
         """
-        for sign in ('\n', '\ufeff', '\r') + tuple(string.punctuation.split()):
+        for sign in ('\n', '\ufeff', '\r'):
             source_text = source_text.replace(sign, ' ')
-        return source_text
+        return source_text.lower()
 
     @staticmethod
     def hash_function(x):
@@ -188,23 +189,35 @@ class Classifier:
         data = pad_sequences([data], maxlen=self.sequence_length, padding='post')
         return np.reshape(data, data.shape[1:])
 
-    def extract_datas(self, source_text, index=None):
+    def extract_datas(self, source_text, index):
         """ Used to extract a sequence from a string """
         source_text = self.format_text(source_text=source_text)  # delete some useless characters
-        try:
-            if self.letter_mode:
-                temp_text = source_text.replace(' ', '')
-            else:
-                temp_text = text_to_word_sequence(source_text)  # list of words
-            if index is None:  # extract a random sequence from text
-                index = random.randint(0, len(temp_text) - self.sequence_length)  # pick sequence index randomly
+        if self.letter_mode:
+            temp_text = source_text
+            data = ""
+            i = 0
+            while i < len(temp_text) and len(data) < self.sequence_length:
+                if temp_text[i] != ' ':  # skip spaces
+                    if temp_text[i] in string.punctuation:  # add punctuation individually
+                        data += temp_text[i]
+                    else:
+                        # --- MEASURE WORD ---
+                        long = 0
+                        while temp_text[i + long] not in string.punctuation + ' ':
+                            long += 1
+                        if i + long < len(temp_text) and len(data) + long <= self.sequence_length:
+                            data += temp_text[i:i + long]
+                            i += long - 1
+                        elif len(data) + long > self.sequence_length:
+                            break
+                i += 1
+        else:
+            temp_text = text_to_word_sequence(source_text)  # list of words
             data = temp_text[index:index + self.sequence_length]  # pick sequence
             temp_text = ""
             for word in data:  # sequence to string
                 temp_text += word + ' '
             data = temp_text
-        except ValueError:
-            data = source_text
 
         return self.transform_data(data)
 
@@ -215,26 +228,30 @@ class Classifier:
         for category in self.categories.keys():  # for each known category
             total_files = len(glob.glob(os.path.join(self.data_dir, category + '*')))  # count all files of category
             temp_datas = self._load_from_file(category)  # load datas from first file
+            cat_datas = []
             # --- DATA EXTRACTION ---
-            while (sys.getsizeof(np.array(datas)) < self.data_per_categorie  # byte size limit for memory secure
-                   and self.categories.get(category).get('fileIndex') < total_files):
-                index = self.categories.get(category).get('inFileIndex')
-                self.categories.get(category)['inFileIndex'] += 1
+            while (sys.getsizeof(np.array(cat_datas)) < self.data_per_categorie  # byte size limit for memory secure
+                   and self.categories.get(category).get('fileIndex') < total_files):  # each file read one time
+                index = self.categories.get(category).get('inFileIndex')  # index of sequence in data
+                self.categories.get(category)['inFileIndex'] += 1  # prepare the next index
                 if index == len(temp_datas):  # all data file has been read
                     self.categories.get(category)['fileIndex'] += 1  # go to next data file
-                    self.categories.get(category)['fileIndex'] %= total_files
                     self.categories.get(category)['inFileIndex'] = 0  # initialize reading at first index
                     try:
                         temp_datas = self._load_from_file(category)  # load datas from file
                     except FileNotFoundError:
                         continue
-                datas.append(temp_datas[index])
-            datas = set(datas)  # remove multiple same inputs
+                elif temp_datas[index].tolist() not in cat_datas:
+                    cat_datas.append(temp_datas[index].tolist())  # extract one sequence
+            self.categories.get(category)['fileIndex'] = 0
+
             # --- PREPARING TARGET ---
             temp_target = [0.] * len(self.categories)
             temp_target[self.categories.get(category).get('index')] = 1.
-            # --- ADD TARGET TO GLOBAL BATCH ---
-            target.append([temp_target * len(datas)])
+            # --- ADD TARGET TO LOCAL BATCH ---
+            target.append([temp_target * len(cat_datas)])
+            # --- ADD DATA TO GLOBAL BATCH ---
+            datas.append(cat_datas)
 
         # --- CONVERT TO NUMPY ARRAYS ---
         datas, target = np.array(datas), np.array(target)

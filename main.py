@@ -19,7 +19,7 @@ if __name__ == '__main__':
                           data_per_categorie=1.,  # amount of data loaded in batch for each category
                           fit_epochs=10,
                           data_size_max=10,
-                          sequence_length=2000,
+                          sequence_length=200,
                           reuse_datas=False,
                           letter_mode=True)
     detector.display_prediction([test, test2])
