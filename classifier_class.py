@@ -379,29 +379,31 @@ class Classifier:
                                               mode='min',
                                               verbose=1)
         # --- FITTING LOOP ---
+        oneBatch = False
         for i in range(1, epochs + 1):
             print('\nTraining epoch: {} / {}'.format(i, epochs))
-            datas, target = [], []
-            loop_num = 0
-            oneBatch = False
+            next_datas, next_target = [], []
+            if not oneBatch:
+                next_datas, next_target = self.mix_datas()
             while True:  # loop on all data
-                if not oneBatch:
-                    datas, target = self.mix_datas()
+                datas, target = next_datas, next_target
+                if len(datas) > 0:
+                    self.model.fit(datas, target,
+                                   batch_size=16, epochs=1,
+                                   verbose=1,
+                                   callbacks=[self.checkpoint])
+                self.save_classifier()  # save classifier
 
-                if len(datas) == 0 or oneBatch:
+                if not oneBatch:
+                    next_datas, next_target = self.mix_datas()
+                    if np.array_equal(datas, next_datas):
+                        oneBatch = True
+
+                if len(next_datas) == 0 or oneBatch:
                     for value in self.categories.values():
                         value['fileIndex'] = 0
                         value['inFileIndex'] = 0
-                    if loop_num == 0:
-                        oneBatch = True
                     break
-
-                self.model.fit(datas, target,
-                               batch_size=16, epochs=1,
-                               verbose=1,
-                               callbacks=[self.checkpoint])
-                self.save_classifier()  # save classifier
-                loop_num += 1
         self.load_weights(self.weights_file)
         self.save_weights(self.weights_file)
         print()
