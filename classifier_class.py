@@ -246,13 +246,17 @@ class Classifier:
                     except FileNotFoundError:
                         continue
                 else:
+                    # verify if the raw is already in the batch
                     c = True
                     for raw in cat_datas:
                         if np.array_equal(raw, temp_datas[index]):
                             c = False
                             break
-                    if c:
+                    if c:  # if not already in data
                         cat_datas.append(temp_datas[index])  # extract one sequence
+            if self.categories.get(category).get('fileIndex') == total_files:  # go at the beginning of the first file
+                self.categories.get(category)['fileIndex'] = 0
+                self.categories.get(category)['inFileIndex'] = 0
 
             # --- PREPARING TARGET ---
             temp_target = [0.] * len(self.categories)
@@ -270,10 +274,7 @@ class Classifier:
 
         return datas, target
 
-    def _load_from_file(self, category, total=None):
-        if total is None:
-            total = len(glob.glob(os.path.join(self.data_dir, category + '*')))  # count all files of category
-        self.categories.get(category)['fileIndex'] %= total
+    def _load_from_file(self, category):
         temp_path = os.path.join(self.data_dir, category + str(self.categories.get(category).get('fileIndex')))
         return self.load_datas(temp_path)
 
@@ -380,13 +381,19 @@ class Classifier:
         # --- FITTING LOOP ---
         for i in range(1, epochs + 1):
             print('\nTraining epoch: {} / {}'.format(i, epochs))
-            while True:
-                datas, target = self.mix_datas()
+            datas, target = [], []
+            loop_num = 0
+            oneBatch = False
+            while True:  # loop on all data
+                if not oneBatch:
+                    datas, target = self.mix_datas()
 
-                if len(datas) == 0:
+                if len(datas) == 0 or oneBatch:
                     for value in self.categories.values():
                         value['fileIndex'] = 0
                         value['inFileIndex'] = 0
+                    if loop_num == 0:
+                        oneBatch = True
                     break
 
                 self.model.fit(datas, target,
@@ -394,6 +401,7 @@ class Classifier:
                                verbose=1,
                                callbacks=[self.checkpoint])
                 self.save_classifier()  # save classifier
+                loop_num += 1
         self.load_weights(self.weights_file)
         self.save_weights(self.weights_file)
         print()
