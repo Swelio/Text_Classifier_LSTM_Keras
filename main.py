@@ -9,10 +9,9 @@ from classifier_class import Classifier
 
 # ---- Script ----
 if __name__ == '__main__':
-    'test'
-    resources = 'C:'  # ignore
-    test = 'C:/Us'  # ignore
-    test2 = 'C:/'  # ignore
+    resources = ''
+    test = ''
+    test2 = ''
 
     detector = Classifier(resources,
                           weights_file='languages',
